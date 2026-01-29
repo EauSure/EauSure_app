@@ -1,26 +1,37 @@
 // app/(onboarding)/index.jsx
-import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Dimensions, Platform } from 'react-native';
+import React, { useRef, useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, { 
-  useAnimatedStyle, 
-  useSharedValue, 
-  withTiming 
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  withSpring,
 } from 'react-native-reanimated';
 
 import { OnboardingService } from '../../utils/storage';
 import OnboardingSlide from '../../components/OnboardingSlide';
 import { SLIDES } from '../../data/slides';
 
-const { width } = Dimensions.get('window');
-
 export default function OnboardingScreen() {
   const router = useRouter();
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Button Animations
+  // Integer dimensions prevent sub-pixel gaps
+  const { width: rawWidth, height: rawHeight } = useWindowDimensions();
+  const pageWidth = useMemo(() => Math.round(rawWidth), [rawWidth]);
+  const pageHeight = useMemo(() => Math.round(rawHeight), [rawHeight]);
+
   const skipScale = useSharedValue(1);
   const continueScale = useSharedValue(1);
 
@@ -36,26 +47,19 @@ export default function OnboardingScreen() {
 
   const finishOnboarding = async () => {
     await OnboardingService.markAsSeen();
-    
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    
-    // Redirect to login
     router.replace('/login');
   };
 
   const handleNext = () => {
-    // Button press animation
     continueScale.value = withTiming(0.95, { duration: 100 }, () => {
-      continueScale.value = withTiming(1);
+      continueScale.value = withSpring(1, { damping: 10, stiffness: 400 });
     });
 
     if (currentIndex < SLIDES.length - 1) {
-      flatListRef.current?.scrollToIndex({
-        index: currentIndex + 1,
-        animated: true,
-      });
+      flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
     } else {
       finishOnboarding();
     }
@@ -63,7 +67,7 @@ export default function OnboardingScreen() {
 
   const handleSkip = () => {
     skipScale.value = withTiming(0.9, { duration: 100 }, () => {
-      skipScale.value = withTiming(1);
+      skipScale.value = withSpring(1, { damping: 10, stiffness: 400 });
     });
     finishOnboarding();
   };
@@ -77,10 +81,9 @@ export default function OnboardingScreen() {
     opacity: withTiming(1, { duration: 180 }),
   }));
 
-  // Dev Reset: Long press dots to reset
   const handleDevReset = async () => {
     await OnboardingService.resetOnboarding();
-    alert('Dev: Onboarding reset. Restart app to see it again.');
+    alert('Dev: Reset');
   };
 
   return (
@@ -95,38 +98,58 @@ export default function OnboardingScreen() {
         bounces={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        style={{ flex: 1 }}
         renderItem={({ item, index }) => (
-          <OnboardingSlide item={item} isFocused={index === currentIndex} />
+          <OnboardingSlide
+            item={item}
+            isFocused={index === currentIndex}
+            pageWidth={pageWidth}
+            pageHeight={pageHeight}
+          />
         )}
-        initialNumToRender={1}
-        maxToRenderPerBatch={1}
-        windowSize={2} // Memory optimization for video
+        getItemLayout={(_, index) => ({
+          length: pageWidth,
+          offset: pageWidth * index,
+          index,
+        })}
+        // CRITICAL FIXES FOR STRIPS AND SMOOTHNESS:
+        // 1. removeClippedSubviews={false}: Prevents the "strips" / flickering on back-scroll
+        removeClippedSubviews={true}
+        // 2. windowSize={3}: Keeps Prev, Current, and Next rendered. 
+        windowSize={7}
+        initialNumToRender={3}
+        maxToRenderPerBatch={8}
+        updateCellsBatchingPeriod={50}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
       />
 
       {/* Top Right Skip */}
       <Animated.View style={[styles.skipContainer, skipButtonStyle]}>
-        <TouchableOpacity onPress={handleSkip} hitSlop={{top: 20, bottom: 20, left: 20, right: 20}}>
+        <TouchableOpacity onPress={handleSkip} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
       </Animated.View>
 
       {/* Bottom Controls */}
       <View style={styles.bottomControls}>
-        
-        {/* Pagination Dots */}
-        <TouchableOpacity onLongPress={handleDevReset} delayLongPress={2000} activeOpacity={1}>
+        <TouchableOpacity
+          onLongPress={handleDevReset}
+          delayLongPress={2000}
+          activeOpacity={1}
+        >
           <View style={styles.pagination}>
             {SLIDES.map((_, index) => {
               const isActive = index === currentIndex;
               return (
-                <View
+                <Animated.View
                   key={index}
                   style={[
                     styles.dot,
-                    { 
-                      width: isActive ? 18 : 6, 
-                      backgroundColor: isActive ? '#3b82f6' : '#475569' 
-                    }
+                    {
+                      width: isActive ? 18 : 6,
+                      backgroundColor: isActive ? '#3b82f6' : '#475569',
+                    },
                   ]}
                 />
               );
@@ -134,11 +157,10 @@ export default function OnboardingScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Continue Button */}
         <Animated.View style={[styles.buttonContainer, continueButtonStyle]}>
           <TouchableOpacity style={styles.button} onPress={handleNext} activeOpacity={0.9}>
             <Text style={styles.buttonText}>
-              {currentIndex === SLIDES.length - 1 ? "Get started" : "Continue"}
+              {currentIndex === SLIDES.length - 1 ? 'Get started' : 'Continue'}
             </Text>
           </TouchableOpacity>
         </Animated.View>
@@ -151,10 +173,24 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a' },
   skipContainer: { position: 'absolute', top: 60, right: 30, zIndex: 10 },
   skipText: { color: 'rgba(255,255,255,0.7)', fontFamily: 'Ubuntu_500Medium', fontSize: 16 },
-  bottomControls: { position: 'absolute', bottom: 50, left: 24, right: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bottomControls: {
+    position: 'absolute',
+    bottom: 50,
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   pagination: { flexDirection: 'row', gap: 8, height: 20, alignItems: 'center' },
   dot: { height: 6, borderRadius: 3 },
-  buttonContainer: { shadowColor: '#3b82f6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  buttonContainer: {
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   button: { backgroundColor: '#3b82f6', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 30 },
   buttonText: { color: '#FFF', fontFamily: 'Ubuntu_700Bold', fontSize: 16 },
 });

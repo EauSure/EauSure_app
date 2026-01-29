@@ -1,122 +1,148 @@
 // components/OnboardingSlide.jsx
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
-import Animated, { 
-  useAnimatedStyle, 
-  useSharedValue, 
-  withDelay, 
-  withSpring, 
-  withTiming, 
-  interpolate,
-  Extrapolation
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { BlurView } from 'expo-blur'; 
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const { width, height } = Dimensions.get('window');
+export default function OnboardingSlide({ item, isFocused, pageWidth, pageHeight }) {
+  const videoRef = useRef(null);
 
-export default function OnboardingSlide({ item, isFocused }) {
-  // Animation Values
+  const player = useVideoPlayer(item.videoUri, (player) => {
+    player.loop = true;
+    player.muted = true;
+  });
+
+  // Animation values
   const titleOpacity = useSharedValue(0);
-  const titleTranslateY = useSharedValue(14);
-  
+  const titleTranslateY = useSharedValue(20);
   const subheadOpacity = useSharedValue(0);
-  const subheadTranslateY = useSharedValue(10);
-  
+  const subheadTranslateY = useSharedValue(15);
   const descOpacity = useSharedValue(0);
-  const descMask = useSharedValue(0); // 0 to 1 progress
+  const descTranslateY = useSharedValue(10);
+  
+  // Controls the blur layer opacity (0 = clear video, 1 = blurred)
+  const blurOpacity = useSharedValue(1); 
 
   useEffect(() => {
+    if (!player) return;
+
     if (isFocused) {
-      // Reset values instantly
+      // 1. Play Video
+      player.play();
+
+      // 2. Fade OUT the blur (reveal video) slowly
+      blurOpacity.value = withTiming(0, { duration: 600, easing: Easing.out(Easing.quad) });
+
+      // 3. Animate Text In (Slower, more cinematic durations)
+      titleOpacity.value = 0; titleTranslateY.value = 20;
+      subheadOpacity.value = 0; subheadTranslateY.value = 15;
+      descOpacity.value = 0; descTranslateY.value = 10;
+
+      titleOpacity.value = withDelay(300, withTiming(1, { duration: 800 }));
+      titleTranslateY.value = withDelay(300, withSpring(0, { damping: 14, stiffness: 70 }));
+
+      subheadOpacity.value = withDelay(500, withTiming(1, { duration: 800 }));
+      subheadTranslateY.value = withDelay(500, withSpring(0, { damping: 14, stiffness: 70 }));
+
+      descOpacity.value = withDelay(700, withTiming(1, { duration: 900 }));
+      descTranslateY.value = withDelay(700, withSpring(0, { damping: 14, stiffness: 70 }));
+      
+    } else {
+      // 1. Pause Video (Saves GPU, we are now blurring a static frame)
+      player.pause();
+
+      // 2. Fade IN the blur (hide video details)
+      blurOpacity.value = withTiming(1, { duration: 500 });
+
+      // 3. Reset Text
       titleOpacity.value = 0;
-      titleTranslateY.value = 14;
       subheadOpacity.value = 0;
-      subheadTranslateY.value = 10;
       descOpacity.value = 0;
-      descMask.value = 0;
-
-      // Trigger Animations sequence
-      titleOpacity.value = withTiming(1, { duration: 300 });
-      titleTranslateY.value = withSpring(0, { damping: 12 });
-
-      subheadOpacity.value = withDelay(80, withTiming(1, { duration: 240 }));
-      subheadTranslateY.value = withDelay(80, withTiming(0, { duration: 240 }));
-
-      descOpacity.value = withDelay(140, withTiming(1, { duration: 500 }));
-      descMask.value = withDelay(140, withTiming(1, { duration: 650 }));
     }
-  }, [isFocused]);
+  }, [isFocused, player]);
+
+  const blurContainerStyle = useAnimatedStyle(() => ({
+    opacity: blurOpacity.value,
+  }));
 
   const titleStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,
     transform: [{ translateY: titleTranslateY.value }],
   }));
-
   const subheadStyle = useAnimatedStyle(() => ({
     opacity: subheadOpacity.value,
     transform: [{ translateY: subheadTranslateY.value }],
   }));
-
   const descStyle = useAnimatedStyle(() => ({
     opacity: descOpacity.value,
-    maxWidth: interpolate(descMask.value, [0, 1], [0, width - 48], Extrapolation.CLAMP)
+    transform: [{ translateY: descTranslateY.value }],
   }));
 
   return (
-    <View style={styles.container}>
-      {/* Background Video Layer */}
+    <View style={[styles.container, { width: pageWidth, height: pageHeight }]}>
       <View style={styles.backgroundContainer}>
-        <Video
-          source={item.videoUri}
-          style={StyleSheet.absoluteFill}
-          resizeMode={ResizeMode.COVER}
-          isLooping
-          isMuted
-          shouldPlay={isFocused} // Only play if active slide
-          posterSource={item.fallbackImage}
-          usePoster={true} // Critical for avoiding black flash on Android
-          posterStyle={{ resizeMode: 'cover' }}
-        />
+        {/* Video Layer */}
+        <View style={StyleSheet.absoluteFill}>
+          <VideoView
+            ref={videoRef}
+            style={StyleSheet.absoluteFill}
+            player={player}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        </View>
+
+        {/* Blur Layer - Fades in when not focused */}
+        <Animated.View style={[StyleSheet.absoluteFill, blurContainerStyle]}>
+           <BlurView 
+              intensity={Platform.OS === 'android' ? 20 : 30} 
+              tint="dark"
+              style={StyleSheet.absoluteFill} 
+              // experimentalBlurMethod="dime"  <-- REMOVED to fix crash
+           />
+           {/* Fallback dark overlay for consistency if blur is weak on Android */}
+           <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15, 23, 42, 0.4)' }]} />
+        </Animated.View>
+
+        {/* Gradient Layer (Always on top for text readability) */}
         <LinearGradient
           colors={['transparent', 'rgba(15, 23, 42, 0.6)', 'rgba(15, 23, 42, 0.95)']}
-          style={StyleSheet.absoluteFill}
           locations={[0.4, 0.8, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
         />
       </View>
 
-      {/* Text Content Layer */}
       <View style={styles.contentContainer}>
-        <Animated.Text style={[styles.title, titleStyle]}>
-          {item.title}
-        </Animated.Text>
-        
-        <Animated.Text style={[styles.subhead, subheadStyle]}>
-          {item.subhead}
-        </Animated.Text>
-        
-        <Animated.Text style={[styles.description, descStyle]}>
-          {item.description}
-        </Animated.Text>
+        <Animated.Text style={[styles.title, titleStyle]}>{item.title}</Animated.Text>
+        <Animated.Text style={[styles.subhead, subheadStyle]}>{item.subhead}</Animated.Text>
+        <Animated.Text style={[styles.description, descStyle]}>{item.description}</Animated.Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { width, height, justifyContent: 'flex-end' },
+  container: { 
+    flex: 1, 
+    justifyContent: 'flex-end',
+    overflow: 'hidden', 
+    backgroundColor: '#0f172a',
+    
+  },
   backgroundContainer: { ...StyleSheet.absoluteFillObject },
-  contentContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 160, 
-  },
-  title: {
-    fontFamily: 'Ubuntu_700Bold',
-    fontSize: 32,
-    color: '#FFFFFF',
-    marginBottom: 8,
-    lineHeight: 38,
-  },
+  contentContainer: { paddingHorizontal: 24, paddingBottom: 160 },
+  title: { fontFamily: 'Ubuntu_700Bold', fontSize: 32, color: '#FFFFFF', marginBottom: 8, lineHeight: 38 },
   subhead: {
     fontFamily: 'Ubuntu_500Medium',
     fontSize: 18,
@@ -125,10 +151,5 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  description: {
-    fontFamily: 'Ubuntu_400Regular',
-    fontSize: 16,
-    color: '#cbd5e1',
-    lineHeight: 24,
-  },
+  description: { fontFamily: 'Ubuntu_400Regular', fontSize: 16, color: '#cbd5e1', lineHeight: 24 },
 });
