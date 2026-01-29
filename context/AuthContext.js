@@ -52,6 +52,22 @@ export function AuthProvider({ children }) {
       };
     }
   };
+  const register = async (email, password, name) => {
+    try {
+      const res = await client.post('/auth/register', { email, password, name });
+
+      if (res.data.token) {
+        await SecureStore.setItemAsync('userToken', res.data.token);
+        setUser(res.data.user); // Connecte l'utilisateur immédiatement
+        return { success: true };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        msg: error.response?.data?.message || "Erreur lors de l'inscription" 
+      };
+    }
+  };
 
   const logout = async () => {
     await SecureStore.deleteItemAsync('userToken');
@@ -59,7 +75,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

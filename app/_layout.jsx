@@ -1,81 +1,76 @@
 // app/_layout.jsx
-import { Tabs, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../context/AuthContext';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { Home, Scan, Settings } from 'lucide-react-native';
+import { useFonts, Ubuntu_400Regular, Ubuntu_500Medium, Ubuntu_700Bold } from '@expo-google-fonts/ubuntu';
+
+// Import the service
+import { OnboardingService } from '../utils/storage';
 
 function RootLayoutNav() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  
+  const [isAppReady, setIsAppReady] = useState(false);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
+  // Load Fonts
+  const [fontsLoaded] = useFonts({
+    Ubuntu_400Regular,
+    Ubuntu_500Medium,
+    Ubuntu_700Bold,
+  });
+
+  // Check Storage on Mount
   useEffect(() => {
-    if (isLoading) return;
-    const inAuthGroup = segments[0] === 'login'; // Vérifie si on est sur login
+    const checkOnboarding = async () => {
+      try {
+        const seen = await OnboardingService.checkIfSeen();
+        setHasSeenOnboarding(seen);
+      } catch (error) {
+        console.error("Storage error", error);
+      } finally {
+        setIsAppReady(true);
+      }
+    };
+    checkOnboarding();
+  }, []);
 
-    if (!user && !inAuthGroup) {
-      // Pas connecté et pas sur login -> Hop, au login
+  // Main Routing Logic
+  useEffect(() => {
+    // Block until everything is loaded
+    if (isAuthLoading || !isAppReady || !fontsLoaded) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+    const inOnboardingGroup = segments[0] === '(onboarding)';
+
+    // Logic Tree
+    if (!hasSeenOnboarding) {
+      // 1. New User -> Go to Onboarding
+      if (!inOnboardingGroup) {
+        router.replace('/(onboarding)');
+      }
+    } else if (!user && !inAuthGroup) {
+      // 2. Existing User, Not Logged In -> Go to Login
       router.replace('/login');
     } else if (user && inAuthGroup) {
-      // Connecté et sur login -> Hop, à l'accueil
+      // 3. Logged In User -> Go to Home
       router.replace('/');
     }
-  }, [user, isLoading, segments]);
+  }, [user, isAuthLoading, segments, isAppReady, hasSeenOnboarding, fontsLoaded]);
 
-  if (isLoading) {
+  // Unified Loading Screen
+  if (isAuthLoading || !isAppReady || !fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' }}>
         <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
 
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#2563eb',
-        tabBarStyle: { height: 60, paddingBottom: 10 },
-      }}
-    >
-      {/* 1. Dashboard (Index) */}
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color }) => <Home size={24} color={color} />,
-        }}
-      />
-
-      {/* 2. Scanner */}
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: 'Ajouter',
-          tabBarIcon: ({ color }) => <Scan size={24} color={color} />,
-        }}
-      />
-
-      {/* 3. Settings */}
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Paramètres',
-          tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
-        }}
-      />
-
-      {/* 4. Login (Caché de la barre) */}
-      <Tabs.Screen
-        name="login"
-        options={{
-          href: null, // Ne pas afficher dans le menu du bas
-          tabBarStyle: { display: 'none' }, // Cacher la barre complètement
-        }}
-      />
-    </Tabs>
-  );
+  return <Slot />;
 }
 
 export default function RootLayout() {
