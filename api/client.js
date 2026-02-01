@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 
-const API_URL = 'https://eau-sure-app-login.vercel.app/api'; 
+const API_URL = 'https://eau-sure-app-auth.vercel.app/api'; 
 
 const client = axios.create({
   baseURL: API_URL,

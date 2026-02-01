@@ -11,7 +11,7 @@ export const SLIDES = [
   {
     key: "quality",
     title: "Water quality, in real time.",
-    subhead: "pH - TDS - Temperature",
+    subhead: "pH - TDS - Turbidity - Temperature",
     description: "Spot contamination early with continuous sampling and clean dashboards. Get clear, actionable readings—not raw noise.",
     videoUri: require('../assets/videos/videausure-2_nobars.mp4'),
     fallbackImage: require('../assets/videos/first_frame-2.jpg'),
@@ -34,7 +34,7 @@ export const SLIDES = [
   },
   {
     key: "fall",
-    title: "Detect a fall. Send help.",
+    title: "Detect a fall, Send help.",
     subhead: "Wake‑on‑Motion emergency trigger.",
     description: "A 3‑axis accelerometer detects sudden oscillation signatures. When a fall is suspected, an emergency alert is sent immediately.",
     videoUri: require('../assets/videos/videausure-5_nobars.mp4'),
@@ -45,7 +45,7 @@ export const SLIDES = [
     title: "Battery life measured in years.",
     subhead: "Deep‑sleep optimized architecture.",
     description: "The buoy sleeps most of the time and wakes only when needed. Designed for long missions with minimal maintenance.",
-    videoUri: require('../assets/videos/videausure-5_nobars.mp4'),
+    videoUri: require('../assets/videos/videausure-6_nobars.mp4'),
     fallbackImage: require('../assets/videos/first_frame-5.jpg'),
   },
   {
@@ -53,7 +53,7 @@ export const SLIDES = [
     title: "Maintain remotely. Stay accurate.",
     subhead: "FUOTA + probe protection.",
     description: "Update firmware over the air and keep sensing stable over time. Anti‑fouling routines help protect probes and reduce drift.",
-    videoUri: require('../assets/videos/videausure-5_nobars.mp4'),
+    videoUri: require('../assets/videos/videausure-7_nobars.mp4'),
     fallbackImage: require('../assets/videos/first_frame-5.jpg'),
   },
   {
@@ -61,7 +61,7 @@ export const SLIDES = [
     title: "You’re in control.",
     subhead: "Monitoring that feels effortless.",
     description: "See the status at a glance and get alerted only when it matters. Let’s set up your account to start monitoring.",
-    videoUri: require('../assets/videos/videausure-5_nobars.mp4'),
+    videoUri: require('../assets/videos/videausure-8_nobars.mp4'),
     fallbackImage: require('../assets/videos/first_frame-5.jpg'),
   },
 ];

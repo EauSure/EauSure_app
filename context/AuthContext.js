@@ -17,23 +17,23 @@ export function AuthProvider({ children }) {
     checkLoginStatus();
   }, []);
 
-  const checkLoginStatus = async () => {
-    try {
-      const token = await SecureStore.getItemAsync('userToken');
-      if (token) {
-        // Optionnel : Vérifier si le token est encore valide via l'API
-        // const res = await client.get('/auth/me'); 
-        // setUser(res.data.user);
-        
-        // Pour l'instant, on considère que si le token est là, on est connecté
-        setUser({ token }); 
-      }
-    } catch (e) {
-      console.error("Erreur lecture token", e);
-    } finally {
-      setIsLoading(false);
+ const checkLoginStatus = async () => {
+  try {
+    const token = await SecureStore.getItemAsync('userToken');
+
+    if (token) {
+      await loginWithToken(token);
     }
-  };
+
+  } catch (e) {
+    console.log("Token invalid → logout");
+    await SecureStore.deleteItemAsync('userToken');
+    setUser(null);
+
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const login = async (email, password) => {
     try {
@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
 
       if (res.data.token) {
         await SecureStore.setItemAsync('userToken', res.data.token);
-        setUser(res.data.user);
+        await loginWithToken(res.data.token);
         return { success: true };
       }
     } catch (error) {
@@ -53,21 +53,31 @@ export function AuthProvider({ children }) {
     }
   };
   const register = async (email, password, name) => {
-    try {
-      const res = await client.post('/auth/register', { email, password, name });
+  try {
+    await client.post('/auth/register', { email, password, name });
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      msg: error.response?.data?.message || "Erreur lors de l'inscription"
+    };
+  }
+};
+const loginWithToken = async (token) => {
+  try {
+    await SecureStore.setItemAsync('userToken', token);
 
-      if (res.data.token) {
-        await SecureStore.setItemAsync('userToken', res.data.token);
-        setUser(res.data.user); // Connecte l'utilisateur immédiatement
-        return { success: true };
-      }
-    } catch (error) {
-      return { 
-        success: false, 
-        msg: error.response?.data?.message || "Erreur lors de l'inscription" 
-      };
-    }
-  };
+    const res = await client.get('/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    setUser({ token, ...res.data.user });
+  } catch (e) {
+    console.log("Token login error:", e);
+    setUser({ token });
+  }
+};
+
 
   const logout = async () => {
     await SecureStore.deleteItemAsync('userToken');
@@ -75,7 +85,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, setUser, isLoading, login, register, logout, loginWithToken }}>
       {children}
     </AuthContext.Provider>
   );
