@@ -5,6 +5,7 @@ import { OnboardingProvider, useOnboarding } from '../context/OnboardingContext'
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { useFonts, Ubuntu_400Regular, Ubuntu_500Medium, Ubuntu_700Bold } from '@expo-google-fonts/ubuntu';
+import { ProfileProvider } from '../context/ProfileContext';
 
 function RootLayoutNav() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -100,9 +101,11 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <ProfileProvider>
       <OnboardingProvider>
         <RootLayoutNav />
       </OnboardingProvider>
+      </ProfileProvider>
     </AuthProvider>
   );
 }
